@@ -1,4 +1,6 @@
 import os
+import time
+import logging
 from dotenv import load_dotenv
 from collections import deque
 from typing import Dict, List, Optional
@@ -23,7 +25,6 @@ from secret_keys import HUGGINGFACE_TOKEN
 # Set Variables
 load_dotenv()
 
-
 HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN", HUGGINGFACE_TOKEN)
 
 if HF_TOKEN != "your-huggingface-token":
@@ -35,6 +36,10 @@ else:
 
 
 class TaskCreationChain(LLMChain):
+    """Chain to create tasks."""
+    #def __init__(self):
+    #    self.logger = logging.getLogger("TaskCreationChain")
+
     @classmethod
     def from_llm(cls, llm: BaseLLM, objective: str, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
@@ -65,6 +70,8 @@ class TaskCreationChain(LLMChain):
 
 class TaskPrioritizationChain(LLMChain):
     """Chain to prioritize tasks."""
+    #def __init__(self):
+     #   self.logger = logging.getLogger("TaskPrioritizationChain")
 
     @classmethod
     def from_llm(cls, llm: BaseLLM, objective: str, verbose: bool = True) -> LLMChain:
@@ -105,9 +112,11 @@ class TaskPrioritizationChain(LLMChain):
         
 class ExecutionChain(LLMChain):
     """Chain to execute tasks."""
-    
     vectorstore: VectorStore = Field(init=False)
 
+    #def __init__(self):
+     #   self.logger = logging.getLogger("ExecutionChain")
+        
     @classmethod
     def from_llm(cls, llm: BaseLLM, vectorstore: VectorStore, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
@@ -167,6 +176,12 @@ class BabyAGI(BaseModel):
     task_prioritization_chain: TaskPrioritizationChain = Field(...)
     execution_chain: ExecutionChain = Field(...)
     task_id_counter: int = Field(1)
+    
+    #def __init__(self):
+        # Configure loggers for each chain
+        #self.task_creation_logger = logging.getLogger("TaskCreationChain")
+        #self.task_prioritization_logger = logging.getLogger("TaskPrioritizationChain")
+        #self.execution_logger = logging.getLogger("ExecutionChain")
 
     def add_task(self, task: Dict):
         self.task_list.append(task)
@@ -195,11 +210,16 @@ class BabyAGI(BaseModel):
             m.write("### Task Ending")
             m.write("")
 
+    def print_iteration_number(self, iteration_number: int):
+        with Message(label="Iteration Number") as m:
+            m.write(f"### Iteration Number: {iteration_number}")
+
 
     def run(self, max_iterations: Optional[int] = None):
         """Run the agent."""
         num_iters = 0
         while True:
+            self.print_iteration_number(num_iters + 1)  # Add this line
             if self.task_list:
                 self.print_task_list()
 
@@ -215,12 +235,13 @@ class BabyAGI(BaseModel):
                 self.print_task_result(result)
 
                 # Step 3: Store the result in Pinecone
-                result_id = f"result_{task['task_id']}"
+                result_id = f"result_{num_iters}_{task['task_id']}"
                 self.execution_chain.vectorstore.add_texts(
                     texts=[result],
                     metadatas=[{"task": task["task_name"]}],
                     ids=[result_id],
                 )
+                #self.execution_logger.info(f"Task: {task['task_name']}, Result: {result}")  # Log execution information
 
                 # Step 4: Create new tasks and reprioritize task list
                 new_tasks = self.task_creation_chain.get_next_task(
@@ -235,6 +256,11 @@ class BabyAGI(BaseModel):
                         this_task_id, list(self.task_list)
                     )
                 )
+                # Log task creation information
+                #self.task_creation_logger.info(f"Result: {result}, Task Description: {task['task_name']}, Incomplete Tasks: {', '.join([t['task_name'] for t in self.task_list])}")  
+                
+                #self.task_prioritization_logger.info(f"This Task ID: {this_task_id}, Task List: {', '.join([t['task_name'] for t in self.task_list])}")  
+
             num_iters += 1
             if max_iterations is not None and num_iters == max_iterations:
                 self.print_task_ending()
@@ -263,31 +289,25 @@ class BabyAGI(BaseModel):
             task_prioritization_chain=task_prioritization_chain,
             execution_chain=execution_chain,
         )
+        #task_id = int(time.time())
+        #controller.add_task({"task_id": task_id, "task_name": first_task})
         controller.add_task({"task_id": 1, "task_name": first_task})
         return controller
 
 
 def main():
+    iteration_number = 0  # Add this line
     st.set_page_config(
         initial_sidebar_state="expanded",
         page_title="BabyAGI Streamlit",
-        layout="centered",
+        layout="wide",
     )
 
-    with st.sidebar:
-        openai_api_key = st.text_input('Your OpenAI API KEY', type="password")
-
     st.title("BabyAGI Streamlit")
-
-    #text=dir(langchain.embeddings)
-    # Display the list in Streamlit
-    #st.write(f'langchain.embeddings dir: {text}')
-    #st.text(f'langchain.embeddings dir: {text}')
-    #text=dir(HuggingFaceInferenceAPIEmbeddings)
-    #st.write(f'HuggingFaceHubEmbeddings dir: {text}')
-    #st.text(f'HuggingFaceHubEmbeddings dir: {text}')
-
-    objective = st.text_input("Input Ultimate goal", "Solve world hunger")
+    st.write(f"Iteration-{iteration_number}")
+    goals = ["Make a small shooter in python OOP scripting", "Make a streamlit cheatsheet", "Make a advanced langchain examples sheet", "End poverty"]
+    objective = st.selectbox("Select Ultimate goal", goals)
+    #objective = st.text_input("Input Ultimate goal", "Solve world hunger")
     first_task = st.text_input("Input Where to start", "Develop a task list")
     max_iterations = st.number_input("Max iterations", value=3, min_value=1, step=1)
     button = st.button("Run")
