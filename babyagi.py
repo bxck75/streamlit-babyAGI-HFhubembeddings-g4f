@@ -283,8 +283,8 @@ def main():
     # Display the list in Streamlit
     #st.write(f'langchain.embeddings dir: {text}')
     #st.text(f'langchain.embeddings dir: {text}')
-    text=dir(HuggingFaceInferenceAPIEmbeddings)
-    st.write(f'HuggingFaceHubEmbeddings dir: {text}')
+    #text=dir(HuggingFaceInferenceAPIEmbeddings)
+    #st.write(f'HuggingFaceHubEmbeddings dir: {text}')
     #st.text(f'HuggingFaceHubEmbeddings dir: {text}')
 
     objective = st.text_input("Input Ultimate goal", "Solve world hunger")
